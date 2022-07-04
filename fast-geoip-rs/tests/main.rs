@@ -19,3 +19,9 @@ async fn check_lookup4_result() {
         }
     );
 }
+
+#[tokio::test]
+#[should_panic]
+async fn looking_for_a_wrong_ipv4() {
+    IpInfo::lookup4("wrong ip address").await.unwrap();
+}

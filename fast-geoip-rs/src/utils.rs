@@ -68,11 +68,11 @@ pub fn get_next_ip_from_list(list: &Vec<IpBlockRecord>, index: isize, current_ne
         current_next_ip
     }
 }
-
+#[cfg(test)]
 mod tests {
-    use std::vec;
 
     use super::*;
+
     #[test]
     fn correct_ip_coercion_from_string_to_number() {
         assert_eq!(ip_string_to_number("255.255.255.255"), 4294967295);
