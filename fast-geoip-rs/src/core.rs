@@ -3,9 +3,9 @@ use crate::utils::{
     item_binary_search,
 };
 use config::{Config, File, FileFormat};
+// Check async version moka::future::Cache
 use moka::sync::Cache;
-use once_cell::sync::Lazy;
-use serde::{de, Deserialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::{self, prelude::*, BufReader, SeekFrom};
 use std::path::Path;
@@ -21,9 +21,11 @@ lazy_static! {
 
         config.try_deserialize::<HashMap<String, usize>>().unwrap()
     };
-}
 
-//static CACHE: Lazy<Cache<&str, Vec<u32>>> = Lazy::new(|| Cache::new(10_000));
+    static ref CACHE: Cache<String, IpInfo> = {
+        Cache::new(10_000)
+    };
+}
 
 // TODO: check number type
 #[derive(Deserialize, Debug)]
@@ -33,9 +35,8 @@ struct LocationRecord(String, String, String, u32, String, String);
 pub struct IpBlockRecord(pub u32, pub Option<u32>, pub f32, pub f32, pub u16);
 
 static ROOT: &str = "../data";
-static CACHE_ENABLED: bool = false;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IpInfo {
     pub range: (u32, u32),
     pub country: String,
@@ -50,10 +51,16 @@ pub struct IpInfo {
 }
 
 impl IpInfo {
-    pub async fn lookup4(ipv4: &str) -> std::io::Result<Self> {
+    pub async fn lookup4(ipv4: &str) -> io::Result<Self> {
         let ip = ip_string_to_number(ipv4);
 
-        let mut next_ip = ip_string_to_number("255.255.255.255".into());
+        let mut next_ip = ip_string_to_number("255.255.255.255");
+
+        if CACHE.get(&ipv4.to_owned()).is_some() {
+            return Ok(CACHE
+                .get(&ipv4.to_owned())
+                .expect("Failed to read from cache."));
+        }
 
         match read_file::<u32>("index.json").await {
             Ok(file) => {
@@ -69,10 +76,10 @@ impl IpInfo {
                     Ok(file) => {
                         let index = file_binary_search(&file, ip)
                             + root_index
-                                * CONFIGURATION
+                                * *CONFIGURATION
                                     .get("NUMBER_NODES_PER_MIDINDEX")
                                     .expect("Failed to fetch internal library parameters")
-                                    .clone() as isize;
+                                    as isize;
 
                         next_ip = get_next_ip_from_u32(&file, index, next_ip);
 
@@ -89,17 +96,23 @@ impl IpInfo {
                                 next_ip = get_next_ip_from_list(&file, index, next_ip);
 
                                 match read_location_record(ip_data.1.unwrap()).await {
-                                    Ok(data) => Ok(IpInfo {
-                                        range: (ip_data.0, next_ip),
-                                        country: data.0,
-                                        region: data.1,
-                                        eu: data.5,
-                                        timezone: data.4,
-                                        city: data.2,
-                                        ll: (ip_data.2, ip_data.3),
-                                        metro: data.3,
-                                        area: ip_data.4,
-                                    }),
+                                    Ok(data) => {
+                                        let result = IpInfo {
+                                            range: (ip_data.0, next_ip),
+                                            country: data.0,
+                                            region: data.1,
+                                            eu: data.5,
+                                            timezone: data.4,
+                                            city: data.2,
+                                            ll: (ip_data.2, ip_data.3),
+                                            metro: data.3,
+                                            area: ip_data.4,
+                                        };
+
+                                        CACHE.insert(ipv4.to_owned(), result.to_owned());
+
+                                        Ok(result)
+                                    }
                                     _ => panic!("2: IP doesn't any region nor country associated"),
                                 }
                             }
@@ -127,7 +140,7 @@ async fn read_location_record(index: u32) -> io::Result<LocationRecord> {
     .await
 }
 
-async fn read_file_chunk<'b, T: serde::de::DeserializeOwned>(
+async fn read_file_chunk<T: serde::de::DeserializeOwned>(
     file_name: &str,
     offset: u64,
     lenght: usize,
@@ -153,11 +166,7 @@ async fn read_file_chunk<'b, T: serde::de::DeserializeOwned>(
     Ok(result)
 }
 
-async fn read_file<'a, T: serde::de::DeserializeOwned>(file_name: &str) -> std::io::Result<Vec<T>> {
-    //if CACHE_ENABLED && CACHE.get(&file_name).is_some() {
-    //return Ok(CACHE.get(&file_name).unwrap());
-    //}
-
+async fn read_file<T: serde::de::DeserializeOwned>(file_name: &str) -> std::io::Result<Vec<T>> {
     let file = async_fs::read(Path::new(ROOT).join(file_name))
         .await
         .expect("Failed to read the file. Filename: {file_name}");
@@ -167,9 +176,64 @@ async fn read_file<'a, T: serde::de::DeserializeOwned>(file_name: &str) -> std::
     // TODO: maybe ::from_string() is more fast
     let json: Vec<T> = serde_json::from_reader(buffer).unwrap();
 
-    //if CACHE_ENABLED {
-    //CACHE.insert(file_name, json.clone())
-    //}
-
     Ok(json)
+}
+
+#[test]
+fn check_cache_updates() {
+    assert!(CACHE.get(&String::from("81.22.36.183")).is_none());
+
+    futures::executor::block_on(async { IpInfo::lookup4("81.22.36.183").await.unwrap() });
+
+    assert!(CACHE.get(&String::from("81.22.36.183")).is_some());
+
+    assert_eq!(
+        CACHE.get(&String::from("81.22.36.183")).unwrap(),
+        IpInfo {
+            range: (1360405504, 1360405760),
+            country: "IT".to_string(),
+            region: "25".to_string(),
+            eu: "1".to_string(),
+            timezone: "Europe/Rome".to_string(),
+            city: "Milan".to_string(),
+            ll: (45.4722, 9.1922),
+            metro: 0,
+            area: 20
+        }
+    );
+
+    futures::executor::block_on(async { IpInfo::lookup4("104.88.93.92").await.unwrap() });
+
+    assert!(CACHE.get(&String::from("81.22.36.183")).is_some());
+    assert!(CACHE.get(&String::from("104.88.93.92")).is_some());
+
+    assert_eq!(
+        CACHE.get(&String::from("81.22.36.183")).unwrap(),
+        IpInfo {
+            range: (1360405504, 1360405760),
+            country: "IT".to_string(),
+            region: "25".to_string(),
+            eu: "1".to_string(),
+            timezone: "Europe/Rome".to_string(),
+            city: "Milan".to_string(),
+            ll: (45.4722, 9.1922),
+            metro: 0,
+            area: 20
+        }
+    );
+
+    assert_eq!(
+        CACHE.get(&String::from("104.88.93.92")).unwrap(),
+        IpInfo {
+            range: (1750618112, 1750622208),
+            country: "GB".to_string(),
+            region: "ENG".to_string(),
+            eu: "0".to_string(),
+            timezone: "Europe/London".to_string(),
+            city: "London".to_string(),
+            ll: (51.5164, -0.093),
+            metro: 0,
+            area: 20
+        }
+    );
 }
