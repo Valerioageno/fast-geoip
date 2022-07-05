@@ -54,7 +54,7 @@ impl IpInfo {
     pub async fn lookup4(ipv4: &str) -> io::Result<Self> {
         let ip = ip_string_to_number(ipv4);
 
-        let mut next_ip = ip_string_to_number("255.255.255.255".into());
+        let mut next_ip = ip_string_to_number("255.255.255.255");
 
         if CACHE.get(&ipv4.to_owned()).is_some() {
             return Ok(CACHE
@@ -76,10 +76,10 @@ impl IpInfo {
                     Ok(file) => {
                         let index = file_binary_search(&file, ip)
                             + root_index
-                                * CONFIGURATION
+                                * *CONFIGURATION
                                     .get("NUMBER_NODES_PER_MIDINDEX")
                                     .expect("Failed to fetch internal library parameters")
-                                    .clone() as isize;
+                                    as isize;
 
                         next_ip = get_next_ip_from_u32(&file, index, next_ip);
 
