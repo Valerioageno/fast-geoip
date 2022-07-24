@@ -1,5 +1,5 @@
 const start = Date.now();
-const lookup = require("../lookup");
+const {lookup} = require("../build");
 (
   async function(){
     for(let i=0; i<process.env['A']; i++){

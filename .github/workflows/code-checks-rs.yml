@@ -3,12 +3,9 @@ name: Rust crate version pipeline
 on: [push, pull_request]
 
 jobs:
-  fmt:
+  fmt-rust:
     name: Rustfmt
     runs-on: ubuntu-latest
-
-    env:
-      working-directory: antikithera
 
     steps:
       - uses: actions/checkout@v2
@@ -17,14 +14,24 @@ jobs:
           toolchain: stable
           override: true
           components: rustfmt
-      - run: cd fast-geoip-rs && cargo fmt --all -- --check
+      - run: cd rust && cargo fmt --all -- --check
+
+  fmt-wasm:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt
+      - run: cd wasm && cargo fmt --all -- --check
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
-
-    env:
-      working-directory: antikithera
 
     steps:
       - uses: actions/checkout@v2
@@ -33,4 +40,4 @@ jobs:
           components: clippy
           toolchain: stable
           override: true
-      - run: cd fast-geoip-rs && cargo clippy -- -D warnings
+      - run: cd rust && cargo clippy -- -D warnings

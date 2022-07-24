@@ -3,9 +3,10 @@ from math import sqrt, floor, ceil
 
 RAW_DATABASE_DIR = "raw"
 DATA_DIR = "data"
-CODE_DIR = "fast-geoip-ts/build"
+CODE_DIR = "typescript/build"
 PARAMS_FILE = os.path.join(CODE_DIR, "params.js")
-RUST_PARAMS_FILE = "fast-geoip-rs/params.json"
+RUST_PARAMS_FILE = "rust/params.json"
+WASM_PARAMS_FILE = "wasm/params.json"
 BLOCK_SIZE = 2**12 # = 4KB, the storage block size on almost all new OSes
 FILE_SIZE = BLOCK_SIZE*12 - 100 # File size is made to be lower than the size of 12 storage blocks (minus a few bytes to account for overheads) in order to make sure that all the file's contents are directly addressed from the file's inode (preventing indirect access to storage blocks)
 
@@ -131,6 +132,12 @@ def storeDynamicParams(location_record_length, num_mid_nodes):
             "LOCATION_RECORD_SIZE": location_record_length,
             "NUMBER_NODES_PER_MIDINDEX": num_mid_nodes
             } 
+        params_file.write(json.dumps(params))
+    with open(WASM_PARAMS_FILE, "w") as params_file:
+        params = {
+            "LOCATION_RECORD_SIZE": location_record_length,
+            "NUMBER_NODES_PER_MIDINDEX": num_mid_nodes
+            }
         params_file.write(json.dumps(params))
 
 def main():
