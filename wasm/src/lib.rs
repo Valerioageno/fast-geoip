@@ -7,8 +7,8 @@ extern crate lazy_static;
 extern crate napi_derive;
 
 mod utils;
-use async_fs::{self, File};
-use config::{Config, FileFormat};
+use async_fs;
+use config::{Config, File, FileFormat};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::{prelude::*, BufReader, SeekFrom};
