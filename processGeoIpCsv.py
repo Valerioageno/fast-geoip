@@ -135,7 +135,7 @@ def storeDynamicParams(location_record_length, num_mid_nodes):
         params_file.write(json.dumps(params))
     with open(WASM_PARAMS_FILE, "w") as params_file:
         params = {
-            "LOCATION_RECOD_SIZE": location_record_length,
+            "LOCATION_RECORD_SIZE": location_record_length,
             "NUMBER_NODES_PER_MIDINDEX": num_mid_nodes
             }
         params_file.write(json.dumps(params))
