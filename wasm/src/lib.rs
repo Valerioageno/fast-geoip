@@ -7,8 +7,8 @@ extern crate lazy_static;
 extern crate napi_derive;
 
 mod utils;
-use async_fs;
-use config::{Config, File, FileFormat};
+use async_fs::{self, File};
+use config::{Config, FileFormat};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::{prelude::*, BufReader, SeekFrom};
@@ -27,7 +27,7 @@ struct IpInfo {
   pub range: Vec<u32>,
   pub country: String,
   pub region: String,
-  //TODO: Check if possible on Wasm use the char type
+  //TODO: Check if possible on WASM use the char type
   pub eu: String, // "1" | "0"
   pub timezone: String,
   pub city: String,
@@ -51,17 +51,16 @@ lazy_static! {
 
 #[napi]
 async fn lookup4(ipv4: String) -> Option<IpInfo> {
-  //TODO: prevent wrong ips
-  let ip = utils::ip_string_to_number(ipv4);
+  let ip = utils::ip_string_to_number(&ipv4);
 
-  let mut next_ip = utils::ip_string_to_number(String::from("255.255.255.255"));
+  let mut next_ip = utils::ip_string_to_number(&String::from("255.255.255.255"));
 
   match read_file::<u32>("index.json").await {
     Ok(file) => {
       let root_index: isize = utils::file_binary_search(&file, ip);
 
       if root_index == -1 {
-        println!("Ip not found in the database");
+        println!("{} not found in the database", &ipv4);
         return None;
       }
 
@@ -137,9 +136,9 @@ async fn read_file_chunk<T: serde::de::DeserializeOwned>(
   offset: u64,
   lenght: usize,
 ) -> std::io::Result<T> {
-  // TODO: read file async
-  let mut file =
-    std::fs::File::open(Path::new(ROOT).join(file_name)).expect("Location file not found");
+  // TODO: read file async. Contribute to https://crates.io/crates/async-fs
+  let mut file = std::fs::File::open(Path::new(ROOT).join(file_name))
+    .expect("Location file not found");
 
   let mut reader = vec![0; lenght];
 
@@ -153,7 +152,6 @@ async fn read_file_chunk<T: serde::de::DeserializeOwned>(
 
   let buffer = BufReader::new(reader.as_slice());
 
-  // TODO: Close opened file?
   let result: T =
     serde_json::from_reader(buffer).expect("Unable to deserialize the locations.json chunk file.");
 
@@ -161,14 +159,13 @@ async fn read_file_chunk<T: serde::de::DeserializeOwned>(
 }
 
 async fn read_file<T: serde::de::DeserializeOwned>(file_name: &str) -> std::io::Result<Vec<T>> {
-  let file = async_fs::read(Path::new(ROOT).join(file_name))
+  let file = async_fs::read_to_string(Path::new(ROOT).join(file_name))
     .await
-    .expect("Failed to read the file. Filename: {file_name}");
+    .expect("Failed to read the db file: {file_name}");
 
-  let buffer = BufReader::new(file.as_slice());
-
-  // TODO: maybe ::from_string() is more fast
-  let json: Vec<T> = serde_json::from_reader(buffer).unwrap();
+  // read from string since is faster than from_reader https://github.com/serde-rs/json/issues/160
+  let json: Vec<T> = serde_json::from_str(&file[..]).unwrap();
 
   Ok(json)
 }
+

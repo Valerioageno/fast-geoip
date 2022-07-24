@@ -22,7 +22,7 @@ pub fn item_binary_search(list: &Vec<IpBlockRecord>, item: u32) -> isize {
   }
 }
 
-pub fn ip_string_to_number(ip: String) -> u32 {
+pub fn ip_string_to_number(ip: &String) -> u32 {
   ip.split('.')
     .map(|x| x.parse::<u32>().unwrap())
     .enumerate()
