@@ -137,8 +137,8 @@ async fn read_file_chunk<T: serde::de::DeserializeOwned>(
   lenght: usize,
 ) -> std::io::Result<T> {
   // TODO: read file async. Contribute to https://crates.io/crates/async-fs
-  let mut file = std::fs::File::open(Path::new(ROOT).join(file_name))
-    .expect("Location file not found");
+  let mut file =
+    std::fs::File::open(Path::new(ROOT).join(file_name)).expect("Location file not found");
 
   let mut reader = vec![0; lenght];
 
@@ -168,4 +168,3 @@ async fn read_file<T: serde::de::DeserializeOwned>(file_name: &str) -> std::io::
 
   Ok(json)
 }
-
